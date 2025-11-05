@@ -5,7 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
-
+data/
 data/ABODA-master/
 # Distribution / packaging
 .Python
@@ -36,6 +36,8 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+
+lightning_logs/
 
 # Unit test / coverage reports
 htmlcov/

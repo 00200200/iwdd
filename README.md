@@ -61,7 +61,3 @@
 - [Trening YOLO jakis pipeline](<https://colab.research.google.com/github/NielsRogge/Transformers-Tutorials/blob/master/YOLOS/Fine_tuning_YOLOS_for_object_detection_on_custom_dataset_(balloon).ipynb>)
 
 - [ten z artykulu medium](https://drive.google.com/drive/folders/1DjeNxdaF7AW3Nu54_3oRw_1SeYJtOvNL)
-
-
-
-

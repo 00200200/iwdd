@@ -9,7 +9,10 @@ dependencies = [
     "lightning>=2.5.5",
     "numpy>=2.3.4",
     "opencv-python>=4.11.0.86",
+    "pytorchvideo>=0.1.5",
+    "tensorboard>=2.20.0",
     "torchvision>=0.24.0",
+    "transformers>=4.57.1",
 ]
 
 [dependency-groups]

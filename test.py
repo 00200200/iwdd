@@ -1,12 +1,22 @@
-import cv2, os, argparse, random
+import argparse
+import os
+import random
+
+import cv2
 import numpy as np
 
-def init_parameter():   
-    parser = argparse.ArgumentParser(description='Test')
-    parser.add_argument("--videos", type=str, default='foo_videos/', help="Dataset folder")
-    parser.add_argument("--results", type=str, default='foo_results/', help="Results folder")
+
+def init_parameter():
+    parser = argparse.ArgumentParser(description="Test")
+    parser.add_argument(
+        "--videos", type=str, default="foo_videos/", help="Dataset folder"
+    )
+    parser.add_argument(
+        "--results", type=str, default="foo_results/", help="Results folder"
+    )
     args = parser.parse_args()
     return args
+
 
 args = init_parameter()
 
@@ -25,7 +35,7 @@ for video in os.listdir(args.videos):
 
         ########################################################
     cap.release()
-    f = open(args.results+video+".txt", "w")
+    f = open(args.results + video + ".txt", "w")
     # Here you should add your code for writing the results
     pos_neg = random.randint(0, 1)
     if pos_neg:
