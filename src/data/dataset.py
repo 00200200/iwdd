@@ -1,6 +1,12 @@
 import lightning as L
 from torch.utils.data import Dataset
-class DAtaset(Dataset):
+
+
+class YoloDataModule(L.LightningDataModule):
+    pass
+
+
+class IWDDDataset(Dataset):
     def __init__(self, data):
         self.data = data
 
@@ -10,5 +16,6 @@ class DAtaset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx]
 
-class DataModule(L.LightningDataModule):
+
+class IWDDDataModule(L.LightningDataModule):
     pass

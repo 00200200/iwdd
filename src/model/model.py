@@ -1,7 +1,6 @@
 import lightning as L
 
 
-
 class Model(L.LightningModule):
     def __init__(self):
         super().__init__()
