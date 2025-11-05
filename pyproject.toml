@@ -8,6 +8,7 @@ dependencies = [
     "huggingface>=0.0.1",
     "lightning>=2.5.5",
     "numpy>=2.3.4",
+    "opencv-python>=4.11.0.86",
     "torchvision>=0.24.0",
 ]
 
