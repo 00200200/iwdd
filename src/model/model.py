@@ -1,6 +1,7 @@
 import lightning as L
 import torch
 from transformers import VideoMAEForVideoClassification
+from torchmetrics.functional import F1Score, Precision, Recall
 
 
 class VideoMAEModel(L.LightningModule):
@@ -22,8 +23,15 @@ class VideoMAEModel(L.LightningModule):
         logits = self(x)
         loss = self.loss_fn(logits, y)
         self.log("train_loss", loss, prog_bar=True)
-        acc = (logits.argmax(dim=1) == y).float().mean()
+        preds = logits.argmax(dim=1)
+        acc = (preds == y).float().mean()
+        f1 = F1Score(preds, y, task="multiclass", num_classes=2)
+        precision = Precision(preds, y, task="multiclass", num_classes=2)
+        recall = Recall(preds, y, task="multiclass", num_classes=2)
         self.log("train_accuracy", acc, prog_bar=True)
+        self.log("train_f1", f1, prog_bar=True)
+        self.log("train_precision", precision, prog_bar=True)
+        self.log("train_recall", recall, prog_bar=True)
         return loss
 
     def validation_step(self, val_batch, batch_idx):
@@ -31,8 +39,15 @@ class VideoMAEModel(L.LightningModule):
         logits = self(x)
         loss = self.loss_fn(logits, y)
         self.log("val_loss", loss, prog_bar=True)
-        acc = (logits.argmax(dim=1) == y).float().mean()
+        preds = logits.argmax(dim=1)
+        acc = (preds == y).float().mean()
+        f1 = F1Score(preds, y, task="multiclass", num_classes=2)
+        precision = Precision(preds, y, task="multiclass", num_classes=2)
+        recall = Recall(preds, y, task="multiclass", num_classes=2)
         self.log("val_accuracy", acc, prog_bar=True)
+        self.log("val_f1", f1, prog_bar=True)
+        self.log("val_precision", precision, prog_bar=True)
+        self.log("val_recall", recall, prog_bar=True)
         return loss
 
     def predict_step(self, test_batch, batch_idx):
