@@ -1,16 +1,19 @@
 import json
 from pathlib import Path
+
 import lightning as L
 import torch
+from pytorchvideo.data.encoded_video import EncodedVideo
 from torch.utils.data import DataLoader, Dataset, random_split
 from transformers import VideoMAEImageProcessor
-from pytorchvideo.data.encoded_video import EncodedVideo
 
 # from torchvision import transforms
 
 
 class VideoFolder(Dataset):
-    def __init__(self, videos_dir, labels_dir, stride=1, clip_duration=3):
+    def __init__(
+        self, videos_dir, labels_dir, stride=1, clip_duration=3, num_frames=16
+    ):
         self.videos_dir = Path(videos_dir)
         self.labels_dir = Path(labels_dir)
         self.processor = VideoMAEImageProcessor.from_pretrained(
@@ -26,7 +29,7 @@ class VideoFolder(Dataset):
         self.clip_duration = clip_duration
         self.clips = []
         self.stride = stride
-
+        self.num_frames = num_frames
         self.prepare_clips()
 
     def __len__(self):
@@ -42,11 +45,16 @@ class VideoFolder(Dataset):
         )
         frames = video_data["video"]
 
+        total_frames = frames.shape[1]
+
+        indices = torch.linspace(0, total_frames - 1, self.num_frames).long()
+        frames = frames[:, indices, :, :]
+
         permutated = frames.permute(1, 2, 3, 0)
         frame_list = [frame for frame in permutated]
 
         inputs = self.processor(frame_list, return_tensors="pt")
-        pixel_values = inputs["pixel_values"].squeeze(0) 
+        pixel_values = inputs["pixel_values"].squeeze(0)
 
         return pixel_values, torch.tensor(clip_info["label"], dtype=torch.long)
 
@@ -66,6 +74,7 @@ class VideoFolder(Dataset):
                 end_time = start_time + self.clip_duration
                 if end_time > duration:
                     end_time = duration
+                    start_time = end_time - self.clip_duration
 
                 clip_label = 0
                 if label == 1:
@@ -94,6 +103,7 @@ class IWDDDataModule(L.LightningDataModule):
         stride=1,
         persistent_workers=True,
         train_split=0.7,
+        num_frames=16,
         val_split=0.15,
     ):
         super().__init__()
@@ -106,11 +116,16 @@ class IWDDDataModule(L.LightningDataModule):
         self.val_split = val_split
         self.clip_duration = clip_duration
         self.stride = stride
+        self.num_frames = num_frames
 
     def setup(self, stage: str):
 
         full_dataset = VideoFolder(
-            self.videos_dir, self.annotations_dir, self.stride, self.clip_duration
+            self.videos_dir,
+            self.annotations_dir,
+            self.stride,
+            self.clip_duration,
+            self.num_frames,
         )
         total = len(full_dataset)
         train_size = int(total * self.train_split)

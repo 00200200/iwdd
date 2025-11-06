@@ -1,7 +1,7 @@
 import lightning as L
 import torch
-from transformers import VideoMAEForVideoClassification
 from torchmetrics.functional import f1_score, precision, recall
+from transformers import VideoMAEForVideoClassification
 
 
 class VideoMAEModel(L.LightningModule):
