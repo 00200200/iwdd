@@ -1,16 +1,19 @@
 import json
 from pathlib import Path
+
 import lightning as L
 import torch
+from pytorchvideo.data.encoded_video import EncodedVideo
 from torch.utils.data import DataLoader, Dataset, random_split
 from transformers import VideoMAEImageProcessor
-from pytorchvideo.data.encoded_video import EncodedVideo
 
 # from torchvision import transforms
 
 
 class VideoFolder(Dataset):
-    def __init__(self, videos_dir, labels_dir, stride=1, clip_duration=3):
+    def __init__(
+        self, videos_dir, labels_dir, stride=1, clip_duration=3, num_frames=16
+    ):
         self.videos_dir = Path(videos_dir)
         self.labels_dir = Path(labels_dir)
         self.processor = VideoMAEImageProcessor.from_pretrained(
@@ -26,7 +29,7 @@ class VideoFolder(Dataset):
         self.clip_duration = clip_duration
         self.clips = []
         self.stride = stride
-
+        self.num_frames = num_frames
         self.prepare_clips()
 
     def __len__(self):
@@ -41,9 +44,27 @@ class VideoFolder(Dataset):
             start_sec=clip_info["start_time"], end_sec=clip_info["end_time"]
         )
         frames = video_data["video"]
-        inputs = self.processor(frames, return_tensors="pt")
 
-        return inputs, torch.tensor(clip_info["label"], dtype=torch.long)
+        total_frames = frames.shape[1]
+
+        indices = torch.linspace(0, total_frames - 1, self.num_frames).long()
+        frames = frames[:, indices, :, :]
+
+        permutated = frames.permute(1, 2, 3, 0)
+        frame_list = [frame for frame in permutated]
+
+        inputs = self.processor(frame_list, return_tensors="pt")
+        pixel_values = inputs["pixel_values"].squeeze(0)
+
+        return {
+            "pixel_values": pixel_values,
+            "label": torch.tensor(clip_info["label"], dtype=torch.long),
+            "video_id": clip_info["video_id"],
+            "video_label": clip_info["video_label"],
+            "start_time": clip_info["start_time"],
+            "end_time": clip_info["end_time"],
+            "video_timestamp": clip_info["video_timestamp"],
+        }
 
     def prepare_clips(self):
         for video_path, label_path in self.samples:
@@ -52,6 +73,8 @@ class VideoFolder(Dataset):
                 label = annotation["Dumping"]
             if label == 1:
                 timestamp = annotation["DumpingDetails"]["Timestamp"]
+            else:
+                timestamp = -1
                 # type_of_dumping = annotation["DumpingDetails"]["Type of Dumping"]
 
             start_time = 0
@@ -61,6 +84,7 @@ class VideoFolder(Dataset):
                 end_time = start_time + self.clip_duration
                 if end_time > duration:
                     end_time = duration
+                    start_time = end_time - self.clip_duration
 
                 clip_label = 0
                 if label == 1:
@@ -73,6 +97,9 @@ class VideoFolder(Dataset):
                         "label": clip_label,
                         "start_time": start_time,
                         "end_time": end_time,
+                        "video_id": video_path.stem,
+                        "video_label": label,
+                        "video_timestamp": timestamp,
                     }
                 )
                 start_time += self.stride
@@ -89,6 +116,7 @@ class IWDDDataModule(L.LightningDataModule):
         stride=1,
         persistent_workers=True,
         train_split=0.7,
+        num_frames=16,
         val_split=0.15,
     ):
         super().__init__()
@@ -101,11 +129,34 @@ class IWDDDataModule(L.LightningDataModule):
         self.val_split = val_split
         self.clip_duration = clip_duration
         self.stride = stride
+        self.num_frames = num_frames
+    
+    def collate_fn(self, batch):
+        pixel_values = [item["pixel_values"] for item in batch]
+        labels = [item["label"] for item in batch]
+        video_ids = [item["video_id"] for item in batch]
+        start_times = [item["start_time"] for item in batch]
+        end_times = [item["end_time"] for item in batch]
+        video_labels = [item["video_label"] for item in batch]
+        video_timestamps = [item["video_timestamp"] for item in batch]
+        return {
+            "pixel_values": torch.stack(pixel_values),
+            "labels": torch.stack(labels),
+            "video_ids": video_ids,
+            "start_times": start_times,
+            "end_times": end_times,
+            "video_labels": video_labels,
+            "video_timestamps": video_timestamps,
+        }
 
     def setup(self, stage: str):
 
         full_dataset = VideoFolder(
-            self.videos_dir, self.annotations_dir, self.stride, self.clip_duration
+            self.videos_dir,
+            self.annotations_dir,
+            self.stride,
+            self.clip_duration,
+            self.num_frames,
         )
         total = len(full_dataset)
         train_size = int(total * self.train_split)
@@ -132,6 +183,7 @@ class IWDDDataModule(L.LightningDataModule):
             shuffle=True,
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
+            collate_fn=self.collate_fn,
         )
 
     def val_dataloader(self):
@@ -141,6 +193,7 @@ class IWDDDataModule(L.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
+            collate_fn=self.collate_fn,
         )
 
     def test_dataloader(self):
@@ -150,4 +203,5 @@ class IWDDDataModule(L.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
+            collate_fn=self.collate_fn,
         )
