@@ -50,7 +50,7 @@ class VideoFolder(Dataset):
         indices = torch.linspace(0, total_frames - 1, self.num_frames).long()
         frames = frames[:, indices, :, :]
 
-        permutated = frames.permute(1, 2, 3, 0)
+        permutated = frames.permute(1, 0, 2, 3)
         frame_list = [frame for frame in permutated]
 
         inputs = self.processor(frame_list, return_tensors="pt")
