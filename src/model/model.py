@@ -2,6 +2,7 @@ import lightning as L
 import torch
 from torchmetrics.functional import f1_score, precision, recall
 from transformers import VideoMAEForVideoClassification
+
 from src.utils.metrics import calculate_metrics
 
 
@@ -80,9 +81,6 @@ class VideoMAEModel(L.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
     def on_validation_epoch_end(self):
-        if len(self.clip_outputs) == 0:
-            print("CLIP OUTPUTS IS EMPTY ")
-            return
         metrics = calculate_metrics(self.clip_outputs)
         self.log("val_video_precision", metrics["precision"], prog_bar=True)
         self.log("val_video_recall", metrics["recall"], prog_bar=True)
