@@ -2,18 +2,23 @@ import lightning as L
 import torch
 from torchmetrics.functional import f1_score, precision, recall
 from transformers import VideoMAEForVideoClassification
-
 from src.utils.metrics import calculate_metrics
 
 
 class VideoMAEModel(L.LightningModule):
-    def __init__(self, learning_rate=1e-1):
+    def __init__(self, learning_rate=1e-4):
         super().__init__()
         self.model = VideoMAEForVideoClassification.from_pretrained(
             "MCG-NJU/videomae-base-short-ssv2"
         )
         self.learning_rate = learning_rate
         self.loss_fn = torch.nn.CrossEntropyLoss()
+
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        for param in self.model.classifier.parameters():
+            param.requires_grad = True
 
         self.clip_outputs = []
 
@@ -26,26 +31,32 @@ class VideoMAEModel(L.LightningModule):
         x, y = train_batch["pixel_values"], train_batch["labels"]
         logits = self(x)
         loss = self.loss_fn(logits, y)
-        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_loss", loss, prog_bar=True, batch_size=x.size(0))
         preds = logits.argmax(dim=1)
         acc = (preds == y).float().mean()
         f1 = f1_score(preds, y, task="multiclass", num_classes=2)
         prec_score = precision(preds, y, task="multiclass", num_classes=2)
         recall_score = recall(preds, y, task="multiclass", num_classes=2)
-        self.log("train_accuracy", acc, prog_bar=True)
-        self.log("train_f1", f1, prog_bar=True)
-        self.log("train_precision", prec_score, prog_bar=True)
-        self.log("train_recall", recall_score, prog_bar=True)
+        self.log("train_accuracy", acc, prog_bar=True, batch_size=x.size(0))
+        self.log("train_f1", f1, prog_bar=True, batch_size=x.size(0))
+        self.log("train_precision", prec_score, prog_bar=True, batch_size=x.size(0))
+        self.log("train_recall", recall_score, prog_bar=True, batch_size=x.size(0))
         return loss
 
     def validation_step(self, val_batch, batch_idx):
         x, y = val_batch["pixel_values"], val_batch["labels"]
         logits = self(x)
         loss = self.loss_fn(logits, y)
-        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_loss", loss, prog_bar=True, batch_size=x.size(0))
         preds = logits.argmax(dim=1)
         acc = (preds == y).float().mean()
-        self.log("val_clip_accuracy", acc, prog_bar=True)
+        f1 = f1_score(preds, y, task="multiclass", num_classes=2)
+        prec_score = precision(preds, y, task="multiclass", num_classes=2)
+        recall_score = recall(preds, y, task="multiclass", num_classes=2)
+        self.log("val_accuracy", acc, prog_bar=True, batch_size=x.size(0))
+        self.log("val_f1", f1, prog_bar=True, batch_size=x.size(0))
+        self.log("val_precision", prec_score, prog_bar=True, batch_size=x.size(0))
+        self.log("val_recall", recall_score, prog_bar=True, batch_size=x.size(0))
         self.clip_outputs.append(
             {
                 "preds": preds,
@@ -69,9 +80,11 @@ class VideoMAEModel(L.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
     def on_validation_epoch_end(self):
-
+        if len(self.clip_outputs) == 0:
+            print("CLIP OUTPUTS IS EMPTY ")
+            return
         metrics = calculate_metrics(self.clip_outputs)
-        self.log("precision", metrics["precision"], prog_bar=True)
-        self.log("recall", metrics["recall"], prog_bar=True)
-        self.log("f1", metrics["f1"], prog_bar=True)
+        self.log("val_video_precision", metrics["precision"], prog_bar=True)
+        self.log("val_video_recall", metrics["recall"], prog_bar=True)
+        self.log("val_video_f1", metrics["f1"], prog_bar=True)
         self.clip_outputs = []
