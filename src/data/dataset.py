@@ -6,6 +6,13 @@ import torch
 from pytorchvideo.data.encoded_video import EncodedVideo
 from torch.utils.data import DataLoader, Dataset, random_split
 from transformers import AutoProcessor
+from transformers import VideoMAEImageProcessor
+
+from ultralytics import YOLO
+import cv2
+import numpy as np
+
+# from torchvision import transforms
 
 
 class VideoFolder(Dataset):
@@ -17,11 +24,20 @@ class VideoFolder(Dataset):
         stride=1,
         clip_duration=3,
         num_frames=16,
+        yolo_model_path=None, use_yolo=False
     ):
         self.videos_dir = Path(videos_dir)
         self.labels_dir = Path(labels_dir)
         self.model_config = model_config
         self.processor = self.load_processor()
+
+        self.use_yolo = use_yolo
+        
+        if use_yolo and yolo_model_path:
+            self.yolo_model = YOLO(yolo_model_path)
+        else:
+            self.yolo_model = None
+        
         video_files = sorted(self.videos_dir.glob("*.mp4"))
 
         self.samples = []
@@ -59,6 +75,9 @@ class VideoFolder(Dataset):
         indices = torch.linspace(0, total_frames - 1, self.num_frames).long()
         frames = frames[:, indices, :, :]
 
+        if self.use_yolo and self.yolo_model:
+            frames = self._apply_bounding_box(frames)
+
         permutated = frames.permute(1, 0, 2, 3)
         frame_list = [frame for frame in permutated]
 
@@ -74,6 +93,25 @@ class VideoFolder(Dataset):
             "end_time": clip_info["end_time"],
             "video_timestamp": clip_info["video_timestamp"],
         }
+
+    def _apply_bounding_box(self, frames):
+        batch_size, num_frames, height, width = frames.shape
+        
+        frames_with_boxes = frames.clone()
+        
+        for frame_idx in range(num_frames):
+            frame = frames[:, frame_idx, :, :].permute(1, 2, 0).numpy().astype(np.uint8)
+            
+            #TODO@Maciej-Grzesik workout the confidence score
+            results = self.yolo_model(frame, conf=0.5)
+            
+            annotated_frame = results[0].plot()
+            
+            frames_with_boxes[:, frame_idx, :, :] = torch.from_numpy(
+                annotated_frame.transpose(2, 0, 1)
+            ).float() / 255.0
+        
+        return frames_with_boxes
 
     def prepare_clips(self):
         for video_path, label_path in self.samples:
@@ -129,6 +167,8 @@ class IWDDDataModule(L.LightningDataModule):
         train_split=0.7,
         num_frames=16,
         val_split=0.15,
+        yolo_model_path=None,
+        use_yolo=False,
     ):
         super().__init__()
         self.model_config = model_config
@@ -142,7 +182,9 @@ class IWDDDataModule(L.LightningDataModule):
         self.clip_duration = clip_duration
         self.stride = stride
         self.num_frames = num_frames
-
+        self.yolo_model_path = yolo_model_path
+        self.use_yolo = use_yolo
+    
     def collate_fn(self, batch):
         pixel_values = [item["pixel_values"] for item in batch]
         labels = [item["label"] for item in batch]
@@ -170,6 +212,8 @@ class IWDDDataModule(L.LightningDataModule):
             self.stride,
             self.clip_duration,
             self.num_frames,
+            self.yolo_model_path,
+            self.use_yolo,
         )
         total = len(full_dataset)
         train_size = int(total * self.train_split)
