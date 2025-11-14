@@ -1,37 +1,69 @@
 import lightning as L
 import torch
 from torchmetrics.functional import f1_score, precision, recall
-from transformers import VideoMAEForVideoClassification
 
 from src.utils.metrics import calculate_metrics
 
 
-class VideoMAEModel(L.LightningModule):
-    def __init__(self, learning_rate=1e-5, num_unfreeze_layers=1):
+class VideoClassificationModel(L.LightningModule):
+    def __init__(
+        self,
+        model_config,
+        learning_rate=1e-5,
+        num_unfreeze_layers=1,
+        num_classes=2,
+    ):
         super().__init__()
-        self.model = VideoMAEForVideoClassification.from_pretrained(
-            "MCG-NJU/videomae-base-short-ssv2"
-        )
-        self.learning_rate = learning_rate
+        self.config = model_config
+        self.num_classes = num_classes
+        self.num_unfreeze_layers = num_unfreeze_layers
+        self.model = self.load_model()
         self.loss_fn = torch.nn.CrossEntropyLoss()
+        self.learning_rate = learning_rate
+        self.setup_unfreezing()
+        self.clip_outputs = []
 
+    def load_model(self):
+        model_class_name = self.config["model_class"]
+        model_name = self.config["model_name"]
+
+        if "XCLIP" in model_class_name:
+            from transformers import XCLIPVisionModel
+
+            model = XCLIPVisionModel.from_pretrained(model_name)
+            model.classifier = torch.nn.Linear(
+                model.config.projection_dim, self.num_classes
+            )
+            return model
+        else:
+            from transformers import VideoMAEForVideoClassification
+
+            model = VideoMAEForVideoClassification.from_pretrained(
+                model_name, num_labels=self.num_classes, ignore_mismatched_sizes=True
+            )
+        return model
+
+    def setup_unfreezing(self):
         for param in self.model.parameters():
             param.requires_grad = False
 
-        if num_unfreeze_layers > 0:
-            total_layers = len(self.model.videomae.encoder.layer)
-            for i in range(1, num_unfreeze_layers + 1):
-                for param in self.model.videomae.encoder.layer[
-                    total_layers - i
-                ].parameters():
+        if self.num_unfreeze_layers > 0:
+            if "VideoMAE" in self.config["model_class"]:
+                total_layers = len(self.model.videomae.encoder.layer)
+                layers = self.model.videomae.encoder.layer
+            else:
+                total_layers = len(self.model.vision_model.encoder.layers)
+                layers = self.model.vision_model.encoder.layers
+            for i in range(1, self.num_unfreeze_layers + 1):
+                for param in layers[total_layers - i].parameters():
                     param.requires_grad = True
 
         for param in self.model.classifier.parameters():
             param.requires_grad = True
 
-        self.clip_outputs = []
-
     def forward(self, x):
+        if "XCLIP" in self.config["model_class"]:
+            pass
         outputs = self.model(x)
         logits = outputs.logits
         return logits
