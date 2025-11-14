@@ -42,7 +42,8 @@ uv run -m src.scripts.train
 
 ```python
 model = VideoMAEModel(
-    learning_rate=1e-4  # Learning rate
+    learning_rate=1e-5  # Learning rate
+    num_unfreeze_layers=1 # Num of layers to unfreeze
 )
 
 # Data parameters

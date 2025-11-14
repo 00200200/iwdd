@@ -7,7 +7,7 @@ from src.utils.metrics import calculate_metrics
 
 
 class VideoMAEModel(L.LightningModule):
-    def __init__(self, learning_rate=1e-4):
+    def __init__(self, learning_rate=1e-5, num_unfreeze_layers=1):
         super().__init__()
         self.model = VideoMAEForVideoClassification.from_pretrained(
             "MCG-NJU/videomae-base-short-ssv2"
@@ -17,6 +17,14 @@ class VideoMAEModel(L.LightningModule):
 
         for param in self.model.parameters():
             param.requires_grad = False
+
+        if num_unfreeze_layers > 0:
+            total_layers = len(self.model.videomae.encoder.layer)
+            for i in range(1, num_unfreeze_layers + 1):
+                for param in self.model.videomae.encoder.layer[
+                    total_layers - i
+                ].parameters():
+                    param.requires_grad = True
 
         for param in self.model.classifier.parameters():
             param.requires_grad = True

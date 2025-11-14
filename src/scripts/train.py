@@ -8,7 +8,7 @@ from src.model.model import VideoMAEModel
 def main():
     L.seed_everything(42)
 
-    model = VideoMAEModel(learning_rate=1e-4)
+    model = VideoMAEModel(learning_rate=1e-5, num_unfreeze_layers=1)
     data = IWDDDataModule(
         videos_dir="data/raw/videos",
         annotations_dir="data/raw/labels",
