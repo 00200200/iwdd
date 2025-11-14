@@ -35,19 +35,46 @@ iwdd/
 **Basic training with default parameters:**
 
 ```bash
+# Train default model (VideoMAE-SSv2)
 uv run -m src.scripts.train
+
+# Train specific model
+uv run -m src.scripts.train --model videmoae_ssv2_short --lr 1e5 --epochs 10 -- batch_size 8 --unfreeze-layers 1 --clip-duration 3 --stride 1 --acceleator cuda
+uv run -m src.scripts.train --model videomae_ssv2
+uv run -m src.scripts.train --model xclip
+uv run -m src.scripts.train --model videomae_kinetics
 ```
 
-**Available training parameters** (modify in `src/scripts/train.py`):
+**Available models:** `videomae_ssv2` `videomae_ssv2_shrot`, `videomae_kinetics`, `xclip` (configured in `config/models_config.yaml`)
+
+**CLI arguments:**
+
+```bash
+--model              # Model name (default: videomae_ssv2)
+--epochs             # Number of epochs (default: 10)
+--batch-size         # Batch size (default: 8)
+--lr                 # Learning rate (default: 1e-5)
+--unfreeze-layers    # Layers to unfreeze (default: 1, use 0 for classifier only)
+--clip-duration      # Clip duration in seconds (default: 3)
+--stride             # Sliding window stride (default: 1)
+--accelerator        # Device: auto/cuda/mps/cpu (default: auto)
+```
+
+**Code structure** (if modifying `src/scripts/train.py`):
 
 ```python
-model = VideoMAEModel(
-    learning_rate=1e-5  # Learning rate
-    num_unfreeze_layers=1 # Num of layers to unfreeze
+# Model loaded from config
+model_config = get_model_config(args.model)
+
+model = VideoClassificationModel(
+    model_config=model_config,        # Config from YAML
+    learning_rate=1e-5,               # Learning rate
+    num_unfreeze_layers=1,            # Number of layers to unfreeze
 )
 
 # Data parameters
 data = IWDDDataModule(
+    model_config=model_config,        # Same config
     videos_dir="data/raw/videos",     # Path to videos
     annotations_dir="data/raw/labels", # Path to annotations
     batch_size=8,                      # Batch size
@@ -62,7 +89,7 @@ data = IWDDDataModule(
 # Trainer parameters
 trainer = L.Trainer(
     max_epochs=10,           # Number of epochs
-    accelerator="cuda",      # acceleator
+    accelerator="auto",      # Accelerator
     log_every_n_steps=1,     # Logging frequency
 )
 ```
