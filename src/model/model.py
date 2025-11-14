@@ -1,6 +1,8 @@
 import lightning as L
 import torch
+import torch.nn as nn
 from torchmetrics.functional import f1_score, precision, recall
+from transformers import AutoModel
 
 from src.utils.metrics import calculate_metrics
 
@@ -24,23 +26,13 @@ class VideoClassificationModel(L.LightningModule):
         self.clip_outputs = []
 
     def load_model(self):
-        model_class_name = self.config["model_class"]
         model_name = self.config["model_name"]
-
-        if "XCLIP" in model_class_name:
-            from transformers import XCLIPVisionModel
-
-            model = XCLIPVisionModel.from_pretrained(model_name)
-            model.classifier = torch.nn.Linear(
-                model.config.projection_dim, self.num_classes
-            )
-            return model
-        else:
-            from transformers import VideoMAEForVideoClassification
-
-            model = VideoMAEForVideoClassification.from_pretrained(
-                model_name, num_labels=self.num_classes, ignore_mismatched_sizes=True
-            )
+        model = AutoModel.from_pretrained(model_name)
+        if hasattr(model.config, "hidden_size"):
+            output_dim = model.config.hidden_size
+        elif hasattr(model.config, "projection_dim"):
+            output_dim = model.config.projection_dim
+        model.classifier = nn.Linear(output_dim, self.num_classes)
         return model
 
     def setup_unfreezing(self):
@@ -48,9 +40,9 @@ class VideoClassificationModel(L.LightningModule):
             param.requires_grad = False
 
         if self.num_unfreeze_layers > 0:
-            if "VideoMAE" in self.config["model_class"]:
-                total_layers = len(self.model.videomae.encoder.layer)
-                layers = self.model.videomae.encoder.layer
+            if "videomae" in self.config["model_name"]:
+                total_layers = len(self.model.encoder.layer)
+                layers = self.model.encoder.layer
             else:
                 total_layers = len(self.model.vision_model.encoder.layers)
                 layers = self.model.vision_model.encoder.layers
@@ -62,10 +54,11 @@ class VideoClassificationModel(L.LightningModule):
             param.requires_grad = True
 
     def forward(self, x):
-        if "XCLIP" in self.config["model_class"]:
+        if "XCLIP" in self.config["model_name"]:
             pass
         outputs = self.model(x)
-        logits = outputs.logits
+        sequence_output = outputs.last_hidden_state[:, 0]
+        logits = self.model.classifier(sequence_output)
         return logits
 
     def training_step(self, train_batch, batch_idx):

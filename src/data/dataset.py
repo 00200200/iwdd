@@ -5,9 +5,7 @@ import lightning as L
 import torch
 from pytorchvideo.data.encoded_video import EncodedVideo
 from torch.utils.data import DataLoader, Dataset, random_split
-from transformers import VideoMAEImageProcessor
-
-# from torchvision import transforms
+from transformers import AutoProcessor
 
 
 class VideoFolder(Dataset):
@@ -38,16 +36,9 @@ class VideoFolder(Dataset):
         self.prepare_clips()
 
     def load_processor(self):
-        processor_class_name = self.model_config["processor_class"]
+
         model_name = self.model_config["model_name"]
-        if "VideoMAE" in processor_class_name:
-            from transformers import VideoMAEImageProcessor
-
-            processor = VideoMAEImageProcessor.from_pretrained(model_name)
-        elif "XCLIP" in processor_class_name:
-            from transformers import XCLIPProcessor
-
-            processor = XCLIPProcessor.from_pretrained(model_name)
+        processor = AutoProcessor.from_pretrained(model_name)
         return processor
 
     def __len__(self):
