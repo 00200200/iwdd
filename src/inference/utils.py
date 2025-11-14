@@ -64,5 +64,41 @@ def extract_clips(video_path, clip_duration=3, stride=1, num_frames=16):
 def process_clip(frames, processor):
     frame_list = [frame for frame in frames]
     inputs = processor(frame_list, return_tensors="pt")
-    pixel_values = inputs["pixel_values"].squeeze(0)
+    pixel_values = inputs["pixel_values"]
     return pixel_values
+
+
+def predict_video(model, processor, video_path):
+    clips = extract_clips(video_path)
+    clip_predictions = []
+    with torch.no_grad():
+        for clip in clips:
+            pixel_values = process_clip(clip["frames"], processor)
+            pixel_values = pixel_values
+            logits = model(pixel_values)
+            probs = torch.softmax(logits, dim=1)
+            pred = torch.argmax(probs, dim=1).item()
+            confidence = probs[0, pred].item()
+
+            clip_predictions.append(
+                {
+                    "prediction": pred,
+                    "confidence": confidence,
+                    "start_time": clip["start_time"],
+                    "end_time": clip["end_time"],
+                }
+            )
+
+    positive_clips = [clip for clip in clip_predictions if clip["prediction"] == 1]
+
+    if positive_clips:
+        max_confidence_clip = max(positive_clips, key=lambda x: x["confidence"])
+        timestamp = max_confidence_clip["end_time"]
+    else:
+        timestamp = None
+
+    return {
+        "dumping": 1 if timestamp is not None else 0,
+        "timestamp": timestamp,
+        "clip_predictions": clip_predictions,
+    }
