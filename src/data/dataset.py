@@ -5,20 +5,23 @@ import lightning as L
 import torch
 from pytorchvideo.data.encoded_video import EncodedVideo
 from torch.utils.data import DataLoader, Dataset, random_split
-from transformers import VideoMAEImageProcessor
-
-# from torchvision import transforms
+from transformers import AutoProcessor
 
 
 class VideoFolder(Dataset):
     def __init__(
-        self, videos_dir, labels_dir, stride=1, clip_duration=3, num_frames=16
+        self,
+        videos_dir,
+        labels_dir,
+        model_config,
+        stride=1,
+        clip_duration=3,
+        num_frames=16,
     ):
         self.videos_dir = Path(videos_dir)
         self.labels_dir = Path(labels_dir)
-        self.processor = VideoMAEImageProcessor.from_pretrained(
-            "MCG-NJU/videomae-base-short-ssv2"
-        )
+        self.model_config = model_config
+        self.processor = self.load_processor()
         video_files = sorted(self.videos_dir.glob("*.mp4"))
 
         self.samples = []
@@ -31,6 +34,12 @@ class VideoFolder(Dataset):
         self.stride = stride
         self.num_frames = num_frames
         self.prepare_clips()
+
+    def load_processor(self):
+
+        model_name = self.model_config["model_name"]
+        processor = AutoProcessor.from_pretrained(model_name)
+        return processor
 
     def __len__(self):
         return len(self.clips)
@@ -75,7 +84,6 @@ class VideoFolder(Dataset):
                 timestamp = annotation["DumpingDetails"]["Timestamp"]
             else:
                 timestamp = -1
-                # type_of_dumping = annotation["DumpingDetails"]["Type of Dumping"]
 
             start_time = 0
             encoded_video = EncodedVideo.from_path(video_path)
@@ -102,12 +110,15 @@ class VideoFolder(Dataset):
                         "video_timestamp": timestamp,
                     }
                 )
+                if end_time >= duration:
+                    break
                 start_time += self.stride
 
 
 class IWDDDataModule(L.LightningDataModule):
     def __init__(
         self,
+        model_config,
         videos_dir="data/raw/videos",
         annotations_dir="data/raw/labels",
         batch_size=8,
@@ -120,6 +131,7 @@ class IWDDDataModule(L.LightningDataModule):
         val_split=0.15,
     ):
         super().__init__()
+        self.model_config = model_config
         self.videos_dir = videos_dir
         self.annotations_dir = annotations_dir
         self.batch_size = batch_size
@@ -130,7 +142,7 @@ class IWDDDataModule(L.LightningDataModule):
         self.clip_duration = clip_duration
         self.stride = stride
         self.num_frames = num_frames
-    
+
     def collate_fn(self, batch):
         pixel_values = [item["pixel_values"] for item in batch]
         labels = [item["label"] for item in batch]
@@ -154,6 +166,7 @@ class IWDDDataModule(L.LightningDataModule):
         full_dataset = VideoFolder(
             self.videos_dir,
             self.annotations_dir,
+            self.model_config,
             self.stride,
             self.clip_duration,
             self.num_frames,

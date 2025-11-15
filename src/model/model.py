@@ -1,31 +1,64 @@
 import lightning as L
 import torch
+import torch.nn as nn
 from torchmetrics.functional import f1_score, precision, recall
-from transformers import VideoMAEForVideoClassification
+from transformers import AutoModel
 
 from src.utils.metrics import calculate_metrics
 
 
-class VideoMAEModel(L.LightningModule):
-    def __init__(self, learning_rate=1e-4):
+class VideoClassificationModel(L.LightningModule):
+    def __init__(
+        self,
+        model_config,
+        learning_rate=1e-5,
+        num_unfreeze_layers=1,
+        num_classes=2,
+    ):
         super().__init__()
-        self.model = VideoMAEForVideoClassification.from_pretrained(
-            "MCG-NJU/videomae-base-short-ssv2"
-        )
-        self.learning_rate = learning_rate
+        self.config = model_config
+        self.num_classes = num_classes
+        self.num_unfreeze_layers = num_unfreeze_layers
+        self.model = self.load_model()
         self.loss_fn = torch.nn.CrossEntropyLoss()
+        self.learning_rate = learning_rate
+        self.setup_unfreezing()
+        self.clip_outputs = []
 
+    def load_model(self):
+        model_name = self.config["model_name"]
+        model = AutoModel.from_pretrained(model_name)
+        if hasattr(model.config, "hidden_size"):
+            output_dim = model.config.hidden_size
+        elif hasattr(model.config, "projection_dim"):
+            output_dim = model.config.projection_dim
+        model.classifier = nn.Linear(output_dim, self.num_classes)
+        return model
+
+    def setup_unfreezing(self):
         for param in self.model.parameters():
             param.requires_grad = False
+
+        if self.num_unfreeze_layers > 0:
+            if "videomae" in self.config["model_name"]:
+                total_layers = len(self.model.encoder.layer)
+                layers = self.model.encoder.layer
+            else:
+                total_layers = len(self.model.vision_model.encoder.layers)
+                layers = self.model.vision_model.encoder.layers
+            for i in range(1, self.num_unfreeze_layers + 1):
+                for param in layers[total_layers - i].parameters():
+                    param.requires_grad = True
 
         for param in self.model.classifier.parameters():
             param.requires_grad = True
 
-        self.clip_outputs = []
-
     def forward(self, x):
+        if "XCLIP" in self.config["model_name"]:
+            pass
         outputs = self.model(x)
-        logits = outputs.logits
+        sequence_output = outputs.last_hidden_state[:, 0]
+        logits = self.model.classifier(sequence_output)
         return logits
 
     def training_step(self, train_batch, batch_idx):
