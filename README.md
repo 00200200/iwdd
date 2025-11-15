@@ -20,17 +20,8 @@ uv sync
 
 ### 2. Prepare Dataset
 
-Download the dataset from Google Drive and organize it as follows:
+Download the dataset from Google Drive and using a script.
 
-```
-iwdd/
-└── data/
-    └── raw/
-        ├── labels/    # annotation files
-        └── videos/    # video files
-```
-
-To use the script run:
 uv run python -m src.api_integration.file_servers.download_data_gdrive
 
 ### 3. Training
@@ -42,7 +33,7 @@ uv run python -m src.api_integration.file_servers.download_data_gdrive
 uv run -m src.scripts.train
 
 # Train specific model
-uv run -m src.scripts.train --model videmoae_ssv2_short --lr 1e5 --epochs 10 -- batch_size 8 --unfreeze-layers 1 --clip-duration 3 --stride 1 --acceleator cuda
+uv run -m src.scripts.train --model videmoae_ssv2_short --lr 1e5 --epochs 10 --batch-size 8 --unfreeze-layers 1 --clip-duration 3 --stride 1 --accelerator cuda
 uv run -m src.scripts.train --model videomae_ssv2
 uv run -m src.scripts.train --model xclip
 uv run -m src.scripts.train --model videomae_kinetics
