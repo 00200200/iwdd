@@ -1,4 +1,4 @@
-# iwdd
+# [IWDDCONTEST](https://mivia.unisa.it/iwddcontest2026/)
 
 ## Requirements
 
@@ -60,7 +60,7 @@ uv run -m src.scripts.train --model videomae_kinetics
 --accelerator        # Device: auto/cuda/mps/cpu (default: auto)
 ```
 
-**Code structure** (if modifying `src/scripts/train.py`):
+**Code structure** (`src/scripts/train.py`):
 
 ```python
 # Model loaded from config
