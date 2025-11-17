@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from transformers import AutoProcessor
 
 from ultralytics import YOLO
-import cv2
 import numpy as np
 
 
