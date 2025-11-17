@@ -1,15 +1,15 @@
 models:
   videmoae_ssv2_short:
     model_name: 'MCG-NJU/videomae-base-short-ssv2'
-    use_text: false
+    use_text: 0
   videomae_ssv2:
     model_name: 'MCG-NJU/videomae-base-ssv2'
-    use_text: false
+    use_text: 0
 
   videomae_kinetics:
     model_name: 'MCG-NJU/videomae-base-finetuned-kinetics'
-    use_text: false
+    use_text: 0
   xclip:
     model_name: 'microsoft/xclip-base-patch32-16-frames'
-    use_text: false
+    use_text: 1
     text_prompts: []

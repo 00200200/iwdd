@@ -36,11 +36,11 @@ def main():
     data = IWDDDataModule(
         model_config=model_config,
         batch_size=args.batch_size,
-        num_workers=4,
+        num_workers=1,
         clip_duration=args.clip_duration,
         stride=args.stride,
         persistent_workers=True,
-        train_split=0.7,
+        train_split=0.1,
         num_frames=16,
         val_split=0.15,
     )

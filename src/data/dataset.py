@@ -33,10 +33,10 @@ class VideoFolder(Dataset):
         self.clips = []
         self.stride = stride
         self.num_frames = num_frames
+        self.use_text = self.model_config["use_text"]
         self.prepare_clips()
 
     def load_processor(self):
-
         model_name = self.model_config["model_name"]
         processor = AutoProcessor.from_pretrained(model_name)
         return processor
@@ -62,18 +62,32 @@ class VideoFolder(Dataset):
         permutated = frames.permute(1, 0, 2, 3)
         frame_list = [frame for frame in permutated]
 
-        inputs = self.processor(frame_list, return_tensors="pt")
+        if self.use_text == 1:
+            text_input = f"dumping at {clip_info["video_timestamp"]}" if clip_info["label"] == 1 else "no dumping"
+        
+        inputs = self.processor(images=frame_list, return_tensors="pt") if self.use_text == 0 else self.processor(images=frame_list, text=text_input, return_tensors="pt") 
+                
         pixel_values = inputs["pixel_values"].squeeze(0)
+
+        input_ids = inputs.get("input_ids")
+        attention_mask = inputs.get("attention_mask")
+
+        if input_ids is not None:
+            input_ids = input_ids.squeeze(0)
+        if attention_mask is not None:
+            attention_mask = attention_mask.squeeze(0)
 
         return {
             "pixel_values": pixel_values,
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
             "label": torch.tensor(clip_info["label"], dtype=torch.long),
             "video_id": clip_info["video_id"],
             "video_label": clip_info["video_label"],
             "start_time": clip_info["start_time"],
             "end_time": clip_info["end_time"],
-            "video_timestamp": clip_info["video_timestamp"],
-        }
+            "video_timestamp": clip_info["video_timestamp"]
+            }
 
     def prepare_clips(self):
         for video_path, label_path in self.samples:
@@ -145,6 +159,8 @@ class IWDDDataModule(L.LightningDataModule):
 
     def collate_fn(self, batch):
         pixel_values = [item["pixel_values"] for item in batch]
+        input_ids = [item.get("input_ids") for item in batch]
+        attention_mask = [item.get("attention_mask") for item in batch]
         labels = [item["label"] for item in batch]
         video_ids = [item["video_id"] for item in batch]
         start_times = [item["start_time"] for item in batch]
@@ -153,6 +169,8 @@ class IWDDDataModule(L.LightningDataModule):
         video_timestamps = [item["video_timestamp"] for item in batch]
         return {
             "pixel_values": torch.stack(pixel_values),
+            "input_ids": torch.stack(input_ids),
+            "attention_mask": torch.stack(attention_mask),
             "labels": torch.stack(labels),
             "video_ids": video_ids,
             "start_times": start_times,
