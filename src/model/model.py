@@ -53,44 +53,54 @@ class VideoClassificationModel(L.LightningModule):
         for param in self.model.classifier.parameters():
             param.requires_grad = True
 
-    def forward(self, x):
-        if "XCLIP" in self.config["model_name"]:
-            pass
-        outputs = self.model(x)
+    def forward(self, inputs):
+        pixel_values = inputs["pixel_values"]
+        if self.config["use_text"] == 1:
+            input_ids = inputs.get("input_ids")
+            if input_ids is None:
+                raise ValueError("Text input is required for this model.")
+            attention_mask = inputs["attention_mask"]
+            outputs = self.model(
+                pixel_values=pixel_values,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+            )
+            return outputs.logits_per_video
+        outputs = self.model(pixel_values)
         sequence_output = outputs.last_hidden_state[:, 0]
         logits = self.model.classifier(sequence_output)
         return logits
 
     def training_step(self, train_batch, batch_idx):
-        x, y = train_batch["pixel_values"], train_batch["labels"]
+        x, y = train_batch, train_batch["labels"]
         logits = self(x)
         loss = self.loss_fn(logits, y)
-        self.log("train_loss", loss, prog_bar=True, batch_size=x.size(0))
+        self.log("train_loss", loss, prog_bar=True, batch_size=x["pixel_values"].size(0))
         preds = logits.argmax(dim=1)
         acc = (preds == y).float().mean()
         f1 = f1_score(preds, y, task="multiclass", num_classes=2)
         prec_score = precision(preds, y, task="multiclass", num_classes=2)
         recall_score = recall(preds, y, task="multiclass", num_classes=2)
-        self.log("train_accuracy", acc, prog_bar=True, batch_size=x.size(0))
-        self.log("train_f1", f1, prog_bar=True, batch_size=x.size(0))
-        self.log("train_precision", prec_score, prog_bar=True, batch_size=x.size(0))
-        self.log("train_recall", recall_score, prog_bar=True, batch_size=x.size(0))
+        self.log("train_accuracy", acc, prog_bar=True, batch_size=x["pixel_values"].size(0))
+        self.log("train_f1", f1, prog_bar=True, batch_size=x["pixel_values"].size(0))
+        self.log("train_precision", prec_score, prog_bar=True, batch_size=x["pixel_values"].size(0))
+        self.log("train_recall", recall_score, prog_bar=True, batch_size=x["pixel_values"].size(0))
         return loss
 
     def validation_step(self, val_batch, batch_idx):
-        x, y = val_batch["pixel_values"], val_batch["labels"]
+        x, y = val_batch, val_batch["labels"]
         logits = self(x)
         loss = self.loss_fn(logits, y)
-        self.log("val_loss", loss, prog_bar=True, batch_size=x.size(0))
+        self.log("val_loss", loss, prog_bar=True, batch_size=x["pixel_values"].size(0))
         preds = logits.argmax(dim=1)
         acc = (preds == y).float().mean()
         f1 = f1_score(preds, y, task="multiclass", num_classes=2)
         prec_score = precision(preds, y, task="multiclass", num_classes=2)
         recall_score = recall(preds, y, task="multiclass", num_classes=2)
-        self.log("val_accuracy", acc, prog_bar=True, batch_size=x.size(0))
-        self.log("val_f1", f1, prog_bar=True, batch_size=x.size(0))
-        self.log("val_precision", prec_score, prog_bar=True, batch_size=x.size(0))
-        self.log("val_recall", recall_score, prog_bar=True, batch_size=x.size(0))
+        self.log("val_accuracy", acc, prog_bar=True, batch_size=x["pixel_values"].size(0))
+        self.log("val_f1", f1, prog_bar=True, batch_size=x["pixel_values"].size(0))
+        self.log("val_precision", prec_score, prog_bar=True, batch_size=x["pixel_values"].size(0))
+        self.log("val_recall", recall_score, prog_bar=True, batch_size=x["pixel_values"].size(0))
         self.clip_outputs.append(
             {
                 "preds": preds,
@@ -105,7 +115,7 @@ class VideoClassificationModel(L.LightningModule):
         return loss
 
     def predict_step(self, test_batch, batch_idx):
-        x, y = test_batch["pixel_values"], test_batch["labels"]
+        x, y = test_batch, test_batch["labels"]
         logits = self(x)
         preds = torch.argmax(logits, dim=1)
         return {"preds": preds, "targets": y}
