@@ -27,6 +27,8 @@ class VideoFolder(Dataset):
         use_yolo=False,
         yolo_model_path=None,
         yolo_general_model_path=None,
+        yolo_trash_conf=0.3,
+        yolo_general_conf=0.5,
     ):
         self.videos_dir = Path(videos_dir)
         self.labels_dir = Path(labels_dir)
@@ -34,6 +36,8 @@ class VideoFolder(Dataset):
         self.processor = self.load_processor()
 
         self.use_yolo = use_yolo
+        self.yolo_trash_conf = yolo_trash_conf
+        self.yolo_general_conf = yolo_general_conf
         
         if use_yolo and yolo_model_path:
             self.yolo_model = YOLO(yolo_model_path)
@@ -115,11 +119,11 @@ class VideoFolder(Dataset):
             annotated_frame = frame.copy()
 
             if self.yolo_model:
-                trash_result = self.yolo_model(frame, conf=0.3)[0]
+                trash_result = self.yolo_model(frame, conf=self.yolo_trash_conf)[0]
                 annotated_frame = trash_result.plot(img=annotated_frame)
 
             if self.yolo_general_model:
-                general_result = self.yolo_general_model(frame, conf=0.5)[0]
+                general_result = self.yolo_general_model(frame, conf=self.yolo_general_conf)[0]
                 boxes = general_result.boxes
                 if boxes is not None and boxes.cls is not None:
                     keep_mask = torch.tensor(
@@ -200,6 +204,8 @@ class IWDDDataModule(L.LightningDataModule):
         yolo_model_path=None,
         yolo_general_model_path=None,
         use_yolo=False,
+        yolo_trash_conf=0.3,
+        yolo_general_conf=0.5,
     ):
         super().__init__()
         self.model_config = model_config
@@ -216,6 +222,8 @@ class IWDDDataModule(L.LightningDataModule):
         self.use_yolo = use_yolo
         self.yolo_model_path = yolo_model_path
         self.yolo_general_model_path = yolo_general_model_path
+        self.yolo_trash_conf = yolo_trash_conf
+        self.yolo_general_conf = yolo_general_conf
     
     def collate_fn(self, batch):
         pixel_values = [item["pixel_values"] for item in batch]
@@ -246,7 +254,9 @@ class IWDDDataModule(L.LightningDataModule):
             self.num_frames,
             self.use_yolo,
             self.yolo_model_path,
-            self.yolo_general_model_path, 
+            self.yolo_general_model_path,
+            self.yolo_trash_conf,
+            self.yolo_general_conf,
         )
         total = len(full_dataset)
         train_size = int(total * self.train_split)

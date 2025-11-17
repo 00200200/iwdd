@@ -21,6 +21,8 @@ def main():
     parser.add_argument("--accelerator", type=str, default="auto")
     parser.add_argument("--clip-duration", type=int, default=3)
     parser.add_argument("--stride", type=int, default=1)
+    parser.add_argument("--yolo-conf", type=float, default=0.3)
+    parser.add_argument("--yolo-general-conf", type=float, default=0.5)
     args = parser.parse_args()
 
     model_config = get_model_config(args.model)
@@ -48,6 +50,8 @@ def main():
         use_yolo=True,
         yolo_model_path=Path("runs/yolov8n_trash_detector/weights/best.pt"),
         yolo_general_model_path=Path("yolov8m.pt"),
+        yolo_trash_conf=args.yolo_conf,
+        yolo_general_conf=args.yolo_general_conf,
     )
 
     trainer = L.Trainer(

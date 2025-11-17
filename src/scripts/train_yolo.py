@@ -18,7 +18,7 @@ def train():
 
     model.train(
         data=str(DATASETS_DIR / "combined_all" / "data.yaml"),
-        single_cls=True,
+        # single_cls=True,
         cache="disk",
         close_mosaic=25,
         cos_lr=True,
