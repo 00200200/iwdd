@@ -62,8 +62,8 @@ class VideoClassificationModel(L.LightningModule):
             attention_mask = inputs["attention_mask"]
             outputs = self.model(
                 pixel_values=pixel_values,
-                input_ids=input_ids,
-                attention_mask=attention_mask,
+                input_ids=input_ids[0],
+                attention_mask=attention_mask[0],
             )
             return outputs.logits_per_video
         outputs = self.model(pixel_values)
