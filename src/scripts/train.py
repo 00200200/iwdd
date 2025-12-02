@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -6,7 +7,8 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from src.data.dataset import IWDDDataModule
 from src.model.model import VideoClassificationModel
 from src.utils.utils import get_model_config
-
+import torch.multiprocessing as mp
+mp.set_start_method('spawn', force=True)
 
 def main():
     L.seed_everything(42)
@@ -19,6 +21,8 @@ def main():
     parser.add_argument("--accelerator", type=str, default="auto")
     parser.add_argument("--clip-duration", type=int, default=3)
     parser.add_argument("--stride", type=int, default=1)
+    parser.add_argument("--yolo-conf", type=float, default=0.3)
+    parser.add_argument("--yolo-general-conf", type=float, default=0.5)
     args = parser.parse_args()
 
     model_config = get_model_config(args.model)
@@ -43,6 +47,11 @@ def main():
         train_split=0.1,
         num_frames=16,
         val_split=0.15,
+        use_yolo=True,
+        yolo_model_path=Path("runs/yolov8n_trash_detector/weights/best.pt"),
+        yolo_general_model_path=Path("yolov8m.pt"),
+        yolo_trash_conf=args.yolo_conf,
+        yolo_general_conf=args.yolo_general_conf,
     )
 
     trainer = L.Trainer(

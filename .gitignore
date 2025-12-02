@@ -223,3 +223,6 @@ runs/
 datasets*/
 kaggle/
 yolo*
+
+models/
+results/
