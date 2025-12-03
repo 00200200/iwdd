@@ -92,6 +92,7 @@ class VideoFolder(Dataset):
         video_data = encoded_video.get_clip(
             start_sec=clip_info["start_time"], end_sec=clip_info["end_time"]
         )
+        encoded_video.close()
         frames = video_data["video"]
         frames = frames / 255.0
 
@@ -158,7 +159,8 @@ class VideoFolder(Dataset):
                 trash_result = self.yolo_model(
                     frame,
                     conf=self.yolo_trash_conf,
-                    iou=0.3
+                    iou=0.3,
+                    verbose=False
                 )[0]
                 annotated_frame = trash_result.plot(img=annotated_frame, labels=False)
 
@@ -166,7 +168,8 @@ class VideoFolder(Dataset):
                 general_result = self.yolo_general_model(
                     frame,
                     conf=self.yolo_general_conf,
-                    classes=general_class_ids
+                    classes=general_class_ids,
+                    verbose=False
                 )[0]
                 general_result.boxes = general_result.boxes[
                     [int(c.item()) in general_class_ids for c in general_result.boxes.cls]
@@ -193,6 +196,7 @@ class VideoFolder(Dataset):
             start_time = 0
             encoded_video = EncodedVideo.from_path(video_path)
             duration = encoded_video.duration
+            encoded_video.close()
             while start_time < duration:
                 end_time = start_time + self.clip_duration
                 if end_time > duration:

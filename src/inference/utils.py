@@ -43,6 +43,7 @@ def extract_clips(video_path, clip_duration=3, stride=1, num_frames=16):
             start_time = end_time - clip_duration
 
         video_data = encoded_video.get_clip(start_sec=start_time, end_sec=end_time)
+        encoded_video.close()
         frames = video_data["video"]
 
         total_frames = frames.shape[1]
@@ -57,6 +58,7 @@ def extract_clips(video_path, clip_duration=3, stride=1, num_frames=16):
         start_time += stride
         if start_time >= duration:
             break
+    
 
     return clips
 
