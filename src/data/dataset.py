@@ -30,6 +30,8 @@ class VideoFolder(Dataset):
         self.videos_dir = Path(videos_dir)
         self.labels_dir = Path(labels_dir)
         self.model_config = model_config
+        self.use_text = self.model_config["use_text"]
+        self.text_prompts = self.model_config["text_prompts"] if self.use_text else None
         self.processor = self.load_processor()
 
         self.use_yolo = use_yolo
@@ -73,7 +75,6 @@ class VideoFolder(Dataset):
         self.prepare_clips()
 
     def load_processor(self):
-
         model_name = self.model_config["model_name"]
         processor = AutoProcessor.from_pretrained(model_name)
         image_processor = getattr(processor, "image_processor", processor)
@@ -88,19 +89,17 @@ class VideoFolder(Dataset):
         clip_info = self.clips[idx]
 
         encoded_video = EncodedVideo.from_path(clip_info["video_path"])
-
         video_data = encoded_video.get_clip(
-            start_sec=clip_info["start_time"], end_sec=clip_info["end_time"]
+          start_sec=clip_info["start_time"], 
+          end_sec=clip_info["end_time"]
         )
         encoded_video.close()
         frames = video_data["video"]
         frames = frames / 255.0
 
         total_frames = frames.shape[1]
-
         indices = torch.linspace(0, total_frames - 1, self.num_frames).long()
         frames = frames[:, indices, :, :]
-
         if self.use_yolo and self.yolo_model:
             frames = self._apply_bounding_box(frames)
 
@@ -109,20 +108,40 @@ class VideoFolder(Dataset):
 
         permutated = frames.permute(1, 0, 2, 3)
 
-        frame_list = [frame for frame in permutated]
 
-        inputs = self.processor(frame_list, return_tensors="pt")
+        if self.use_text == 1:
+            # 2 prompts -> two classes
+            inputs = self.processor(
+                text=self.text_prompts, 
+                images=list(permutated),
+                return_tensors="pt",
+                padding=True
+                )
+        else:
+            frame_list = [frame for frame in permutated]
+            inputs = self.processor(images=frame_list, return_tensors="pt")
+        
         pixel_values = inputs["pixel_values"].squeeze(0)
+
+        input_ids = inputs.get("input_ids")
+        attention_mask = inputs.get("attention_mask")
+
+        if input_ids is not None:
+            input_ids = input_ids.squeeze(0)
+        if attention_mask is not None:
+            attention_mask = attention_mask.squeeze(0)
 
         return {
             "pixel_values": pixel_values,
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
             "label": torch.tensor(clip_info["label"], dtype=torch.long),
             "video_id": clip_info["video_id"],
             "video_label": clip_info["video_label"],
             "start_time": clip_info["start_time"],
             "end_time": clip_info["end_time"],
-            "video_timestamp": clip_info["video_timestamp"],
-        }
+            "video_timestamp": clip_info["video_timestamp"]
+            }
 
     def apply_augmentation(self, frames):
         batch_size, num_frames, height, width = frames.shape
@@ -272,8 +291,31 @@ class IWDDDataModule(L.LightningDataModule):
         end_times = [item["end_time"] for item in batch]
         video_labels = [item["video_label"] for item in batch]
         video_timestamps = [item["video_timestamp"] for item in batch]
+
         return {
             "pixel_values": torch.stack(pixel_values),
+            "labels": torch.stack(labels),
+            "video_ids": video_ids,
+            "start_times": start_times,
+            "end_times": end_times,
+            "video_labels": video_labels,
+            "video_timestamps": video_timestamps,
+        }
+    
+    def collate_fn_wtext(self, batch):
+        pixel_values = [item["pixel_values"] for item in batch]
+        input_ids = [item.get("input_ids") for item in batch]
+        attention_mask = [item.get("attention_mask") for item in batch]
+        labels = [item["label"] for item in batch]
+        video_ids = [item["video_id"] for item in batch]
+        start_times = [item["start_time"] for item in batch]
+        end_times = [item["end_time"] for item in batch]
+        video_labels = [item["video_label"] for item in batch]
+        video_timestamps = [item["video_timestamp"] for item in batch]
+        return {
+            "pixel_values": torch.stack(pixel_values),
+            "input_ids": torch.stack(input_ids),
+            "attention_mask": torch.stack(attention_mask),
             "labels": torch.stack(labels),
             "video_ids": video_ids,
             "start_times": start_times,
@@ -346,7 +388,7 @@ class IWDDDataModule(L.LightningDataModule):
             shuffle=True,
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
-            collate_fn=self.collate_fn,
+            collate_fn=self.collate_fn_wtext if self.model_config["use_text"] == 1 else self.collate_fn,
         )
 
     def val_dataloader(self):
@@ -356,7 +398,7 @@ class IWDDDataModule(L.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
-            collate_fn=self.collate_fn,
+            collate_fn=self.collate_fn_wtext if self.model_config["use_text"] == 1 else self.collate_fn,
         )
 
     def test_dataloader(self):
@@ -366,5 +408,5 @@ class IWDDDataModule(L.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
-            collate_fn=self.collate_fn,
+            collate_fn=self.collate_fn_wtext if self.model_config["use_text"] == 1 else self.collate_fn,
         )
