@@ -18,13 +18,8 @@ cd iwdd
 uv sync
 ```
 
-### 2. Prepare Dataset
 
-Download the dataset from Google Drive and using a script.
-```
-uv run python -m src.api_integration.file_servers.download_data_gdrive
-```
-### 3. Training
+### 2. Training
 
 **Basic training with default parameters:**
 
@@ -88,7 +83,7 @@ trainer = L.Trainer(
 )
 ```
 
-### 4. Monitor Training
+### 3. Monitor Training
 
 During training, metrics are logged to TensorBoard:
 
@@ -98,7 +93,7 @@ tensorboard --logdir lightning_logs/
 
 Open http://localhost:6006 in your browser to view:
 
-### 5. Checkpoints
+### 4. Checkpoints
 
 Best models are saved to `lightning_logs/version_X/checkpoints/` based on validation loss.
 
